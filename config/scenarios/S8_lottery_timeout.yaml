@@ -1,0 +1,8 @@
+# This is a configuration file for the S8 lottery timeout scenario.
+ticket_distribution_mode: "random_time"
+ticket_assignment: "random"
+spend_cap_enabled: false
+timeout_enabled: true
+free_allowance_per_sku: 3
+timeout_increment_minutes: 10
+collusion_enabled: false

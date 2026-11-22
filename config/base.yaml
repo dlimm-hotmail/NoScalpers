@@ -1,0 +1,110 @@
+# === Waitlist / Ticket System ===
+waitlist_enabled: true
+ticket_distribution_mode: "arrival"   # "arrival" | "random_time" | "waves"
+ticket_assignment: "sequential"       # "sequential" | "random"
+
+# === Per-Turn Spend Cap ===
+spend_cap_enabled: true
+spend_cap_dollars: 270
+
+# === Per-SKU Progressive Timeout (now external, step-based) ===
+timeout_enabled: true
+free_allowance_per_sku: 99          # max per SKU, turn 1
+# timeout_step: 0                    # +0 max per SKU, each additional turn
+timeout_min_wait_per_turn: 10      # min minutes between turns (store cooldown)
+
+# === ID Requirement (always on, not a toggle) ===
+id_required: true
+
+# === Parent-Child 2x Authority (always on) ===
+parent_child_authority: true
+
+# === Optional Hard Quantity Limits ===
+per_sku_qty_limit_enabled: false
+per_sku_qty_limit: 99
+total_qty_limit_enabled: false
+total_qty_limit: 99
+
+# === Scalper Behavior ===
+scalper_markup_mean: 0.40
+scalper_markup_std: 0.15
+scalper_opportunity_cost_per_hour: 15
+scalper_recruitment_cost_per_person: 20
+scalper_show_probability: 0.75
+scalper_coordination_decay: 0.85
+
+# === Alternative Store Baseline (Naples comparison) ===
+alt_store_acquisition_rate: 22
+alt_store_total_time_hours: 2
+
+# === Store Hours ===
+store_open_hour: 9
+store_close_hour: 17
+ticket_window_start: 7
+ticket_window_end: 9
+
+# === Population ===
+num_consumers: 400
+num_scalper_recruits: 20
+
+# === SKU Prices ===
+sku_prices:
+  ETB: 55
+  Tin: 18
+  Bundle: 28
+  UPC: 40
+
+# === SKU Supply (units at this store) ===
+sku_supply:
+  ETB: 400
+  Tin: 300
+  Bundle: 1000
+  UPC: 300
+
+# === Simulation ===
+num_runs: 100
+random_seed: null
+
+# === Purchase Interaction Time ===
+interaction_time_min: 1
+
+# --- Behavior A (margin-calculating solo scalper) ---
+# velocity = hours until a unit sells (calibrate from eBay time-to-sale)
+sku_velocity_hours:
+  ETB: 0.5
+  Tin: 1.5
+  Bundle: 1.0
+  UPC: 0.8
+# per-SKU markup mean (optional; falls back to scalper_markup_mean if absent)
+sku_markup_mean:
+  ETB: 0.45
+  Tin: 0.30
+  Bundle: 0.35
+  UPC: 0.40
+# personal quantity cap: learned from "couldn't unload N-20 last time"
+# scalper_qcap_weights: {40: 0.30, 30: 0.30, 30: 0.25, 50: 0.15}
+# per-SKU max the scalper believes they can resell before $/hr collapses
+# (dealer-scale, not consumer-scale). This is the "couldn't unload N-20" idea,
+# per SKU. Calibrate from how much actually moves per SKU on the flip market.
+scalper_sell_through:
+  ETB: 100
+  Tin: 100
+  Bundle: 100
+  UPC: 100
+# === Collusion / Parasite Mechanism ===
+# When enabled, scalper recruits within a group share the earliest
+# member's queue position. Models "join their friend who's been
+# camping all night." Consumers are unaffected.
+collusion_enabled: false
+collusion_group_size: 5
+
+# how aggressively each scalper attacks each SKU, as a fraction of that SKU's
+# sell-through ceiling, drawn per scalper (gives variance without flat qcap)
+scalper_demand_share: [0.80, 1.00]
+# personal credit limit (the $ cap that binds independently of store cap)
+scalper_credit_min: 2000
+scalper_credit_max: 10000
+# monopoly bonus when a scalper can corner a SKU's supply
+scalper_monopoly_mult: 1.5
+# behavior mix (baseline = all A; we'll sweep B/C later)
+scalper_behavior_weights: {A: 1.0, B: 0.0, C: 0.0}

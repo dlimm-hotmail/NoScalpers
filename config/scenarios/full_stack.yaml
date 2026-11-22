@@ -1,0 +1,10 @@
+# config/scenarios/full_stack.yaml
+spend_cap_enabled: true
+timeout_enabled: true
+free_allowance_per_sku: 3
+ticket_distribution_mode: "random_time"
+ticket_assignment: "sequential"
+per_sku_qty_limit_enabled: false   # redundant with timeout's per-SKU cap
+per_sku_qty_limit: 99
+total_qty_limit_enabled: true
+total_qty_limit: 10

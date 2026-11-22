@@ -1,0 +1,8 @@
+# Parameter grid for the sweep. Keep num_runs small here;
+# bump it once the pipeline works.
+num_runs: 20
+grid:
+  spend_cap_dollars: [150, 200, 250, 300]
+  free_allowance_per_sku: [2, 3, 4, 5]
+  timeout_increment_minutes: [5, 10, 15, 20]
+  ticket_distribution_mode: ["arrival", "random_time"]

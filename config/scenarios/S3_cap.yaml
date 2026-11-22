@@ -1,0 +1,8 @@
+# Just the per-turn dollar cap. Shows how the cap alone
+# forces scalpers into many re-entry turns.
+ticket_distribution_mode: "arrival"
+ticket_assignment: "sequential"
+spend_cap_enabled: true
+spend_cap_dollars: 270
+timeout_enabled: false
+collusion_enabled: false
