@@ -1,5 +1,5 @@
 # === Waitlist / Ticket System ===
-waitlist_enabled: true
+# waitlist_enabled: true
 ticket_distribution_mode: "arrival"   # "arrival" | "random_time" | "waves"
 ticket_assignment: "sequential"       # "sequential" | "random"
 
