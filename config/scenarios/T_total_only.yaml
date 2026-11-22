@@ -1,0 +1,7 @@
+ticket_distribution_mode: "arrival"
+ticket_assignment: "sequential"
+cooldown_enabled: false
+per_sku_qty_limit_enabled: false
+total_qty_limit_enabled: true
+total_qty_limit: 10
+spend_cap_enabled: false

@@ -8,8 +8,20 @@ spend_cap_enabled: true
 spend_cap_dollars: 270
 
 # === Per-SKU Progressive Timeout (now external, step-based) ===
-timeout_enabled: true
-free_allowance_per_sku: 99          # max per SKU, turn 1
+# === Four independent limit axes (default OFF) ===
+per_sku_qty_limit_enabled: false
+per_sku_qty_limit: 3
+
+total_qty_limit_enabled: false
+total_qty_limit: 10
+
+spend_cap_enabled: false
+spend_cap_dollars: 270
+
+# Escalating cooldown between turns (decoupled from caps now)
+cooldown_enabled: false
+timeout_increment_minutes: 10
+
 # timeout_step: 0                    # +0 max per SKU, each additional turn
 timeout_min_wait_per_turn: 10      # min minutes between turns (store cooldown)
 
@@ -21,9 +33,9 @@ parent_child_authority: true
 
 # === Optional Hard Quantity Limits ===
 per_sku_qty_limit_enabled: false
-per_sku_qty_limit: 99
+per_sku_qty_limit: 3
 total_qty_limit_enabled: false
-total_qty_limit: 99
+total_qty_limit: 10
 
 # === Scalper Behavior ===
 scalper_markup_mean: 0.40
@@ -108,3 +120,5 @@ scalper_credit_max: 10000
 scalper_monopoly_mult: 1.5
 # behavior mix (baseline = all A; we'll sweep B/C later)
 scalper_behavior_weights: {A: 1.0, B: 0.0, C: 0.0}
+# scalper arrival: "uniform_late" (current) | "camp" (hardcore 1-3am cluster)
+scalper_arrival_mode: "camp"

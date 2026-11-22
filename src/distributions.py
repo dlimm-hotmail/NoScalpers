@@ -11,9 +11,11 @@ def sample_arrival_hour(rng: np.random.Generator, cfg: dict,
                         agent_type: str) -> float:
     open_h = cfg["store_open_hour"]
     if agent_type == "scalper":
-        # Scalpers camp, but less extreme than the 1am true believers.
-        lo = cfg.get("ticket_window_start", open_h - 8)
-        return float(rng.uniform(lo, open_h))
+        mode = cfg.get("scalper_arrival_mode", "uniform_late")
+        if mode == "camp":
+            # hardcore campers: 1am-3am cluster, the seat-holders
+            return float(rng.uniform(1, 3))
+        return float(rng.uniform(cfg.get("ticket_window_start", 7), open_h))
     hours = list(range(open_h - 8, open_h + 1))   # e.g. 1..9
     weights = np.array([h - (open_h - 8) + 1 for h in hours], dtype=float)
     weights /= weights.sum()

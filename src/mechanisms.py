@@ -18,26 +18,22 @@ def turn_cap(agent: Agent, cfg: dict) -> float:
 
 
 def turn_max_per_sku(agent: Agent, cfg: dict) -> int:
-    """Hard cap on qty per SKU per turn. FIXED, never grows.
-    3 per SKU per turn. A collector wanting 3 never re-enters.
-    A scalper wanting 100 re-enters ~34 times."""
-    if not cfg.get("timeout_enabled", False):
+    """Hard per-SKU cap per turn. Independent of cooldown.
+    ×2 for 2-person parties."""
+    if not cfg.get("per_sku_qty_limit_enabled", False):
         return 10 ** 9
-    return int(cfg["free_allowance_per_sku"]) * authority_multiplier(agent, cfg)
+    return int(cfg["per_sku_qty_limit"]) * authority_multiplier(agent, cfg)
 
 
 def min_cooloff_wait(agent: Agent, cfg: dict) -> float:
-    """Minimum minutes the agent must wait BEFORE re-entering the queue.
-    +1 per increasing time interval: 10, 20, 30, 40...
-    This is the store's cooldown, separate from queue wait.
-    The agent is NOT in the queue during this time. The register
-    serves the next person. The line keeps moving."""
-    if not cfg.get("timeout_enabled", False):
+    """Escalating wait between turns. Now its OWN flag, decoupled from any cap.
+    10, 20, 30... min. Agent keeps queue position; a timer gates service."""
+    if not cfg.get("cooldown_enabled", False):
         return 0.0
     increment = float(cfg.get("timeout_increment_minutes", 10))
-    turn = agent.turns_completed  # 0 = first turn, 1 = second, etc.
+    turn = agent.turns_completed
     if turn == 0:
-        return 0.0  # no cooldown after first turn's purchase
+        return 0.0
     return increment * turn
 
 

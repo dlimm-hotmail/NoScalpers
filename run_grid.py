@@ -14,6 +14,11 @@ SCENARIOS = [
     "S7_lottery_no_limit",
     "S8_lottery_timeout",
     "S9_lottery_cap",
+    "S10_lottery_collusion_timeout",
+    "T_cap_only",
+    "T_cooldown_only",
+    "T_per_sku_only",
+    "T_total_only",
 ]
 
 SEEDS = 30

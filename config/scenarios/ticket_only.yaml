@@ -1,4 +1,0 @@
-spend_cap_enabled: false
-timeout_enabled: false
-ticket_distribution_mode: "random_time"
-ticket_assignment: "random"
