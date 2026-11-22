@@ -62,10 +62,10 @@ def main():
         r = results[name]
         row = f"{name:<28}"
         for _, key, fmt in cols:
-            row += f"{r[key]:>{14}{fmt}"
+            spec = f">14{fmt}"          # e.g. ">14.3f"
+            row += f"{r[key]:{spec}}"
         print(row)
-    print(sep)
-
+        
     # Save raw JSON for further analysis
     with open("grid_results.json", "w") as f:
         json.dump(results, f, indent=2)
