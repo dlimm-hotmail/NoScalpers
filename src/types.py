@@ -26,7 +26,10 @@ class Agent:
     party_size: int = 1
     has_child: bool = False
     child_age: Optional[int] = None
+    consumer_type: str = ""          # "hardcore" | "enthusiast" | "budget" | ""
+    priority: list = field(default_factory=list)   # spending order, set at creation
     effective_arrival: float = 0.0   # queue sort key; defaults to arrival_time
+    networked: bool = False
 
     # Demand
     desired: Dict[str, int] = field(default_factory=dict)

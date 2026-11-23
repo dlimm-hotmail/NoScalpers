@@ -3,10 +3,6 @@
 ticket_distribution_mode: "arrival"   # "arrival" | "random_time" | "waves"
 ticket_assignment: "sequential"       # "sequential" | "random"
 
-# === Per-Turn Spend Cap ===
-spend_cap_enabled: true
-spend_cap_dollars: 270
-
 # === Per-SKU Progressive Timeout (now external, step-based) ===
 # === Four independent limit axes (default OFF) ===
 per_sku_qty_limit_enabled: false
@@ -22,31 +18,24 @@ spend_cap_dollars: 270
 cooldown_enabled: false
 timeout_increment_minutes: 10
 
-# timeout_step: 0                    # +0 max per SKU, each additional turn
-timeout_min_wait_per_turn: 10      # min minutes between turns (store cooldown)
-
 # === ID Requirement (always on, not a toggle) ===
 id_required: true
 
 # === Parent-Child 2x Authority (always on) ===
 parent_child_authority: true
 
-# === Optional Hard Quantity Limits ===
-per_sku_qty_limit_enabled: false
-per_sku_qty_limit: 3
-total_qty_limit_enabled: false
-total_qty_limit: 10
-
 # === Scalper Behavior ===
-scalper_markup_mean: 0.40
-scalper_markup_std: 0.15
+# scalper resale markup, sampled uniform over [min, max] of MSRP
+scalper_markup_min: 0.40   # 1.4x MSRP
+scalper_markup_max: 1.50   # 2.5x MSRP
+scalper_transaction_cost: 8   # $ flat cost to flip (shipping, fees, time)
 scalper_opportunity_cost_per_hour: 15
 scalper_recruitment_cost_per_person: 20
 scalper_show_probability: 0.75
 scalper_coordination_decay: 0.85
 
 # === Alternative Store Baseline (Naples comparison) ===
-alt_store_acquisition_rate: 22
+alt_store_acquisition_rate: 16
 alt_store_total_time_hours: 2
 
 # === Store Hours ===
@@ -56,22 +45,38 @@ ticket_window_start: 7
 ticket_window_end: 9
 
 # === Population ===
-num_consumers: 400
+num_consumers: 100
 num_scalper_recruits: 20
+
+# === Consumer Types (partner tunes these) ===
+consumer_type_weights: {hardcore: 0.20, enthusiast: 0.50, budget: 0.30}
+consumer_budgets:
+  hardcore: 600
+  enthusiast: 210
+  budget: 60
+# priority = order of spending preference (first item is what they want most)
+consumer_priorities:
+  hardcore:   [UPC, ETB, Bundle, Tin, Single]
+  enthusiast: [UPC, ETB, Bundle, Tin, Single]
+  budget:     [Bundle, ETB, Tin, Single, UPC]
+# scalpers share the hardcore priority vector
+scalper_priority: [UPC, ETB, Bundle, Tin, Single]
 
 # === SKU Prices ===
 sku_prices:
-  ETB: 55
-  Tin: 18
-  Bundle: 28
-  UPC: 40
+  ETB: 60
+  Tin: 10
+  Bundle: 30
+  UPC: 180
+  Single: 5
 
 # === SKU Supply (units at this store) ===
 sku_supply:
-  ETB: 400
-  Tin: 300
-  Bundle: 1000
-  UPC: 300
+  ETB: 60
+  Tin: 35
+  Bundle: 70
+  UPC: 40
+  Single: 135
 
 # === Simulation ===
 num_runs: 100
@@ -87,12 +92,14 @@ sku_velocity_hours:
   Tin: 1.5
   Bundle: 1.0
   UPC: 0.8
+  Single: 0.2
 # per-SKU markup mean (optional; falls back to scalper_markup_mean if absent)
 sku_markup_mean:
   ETB: 0.45
   Tin: 0.30
   Bundle: 0.35
   UPC: 0.40
+  Single: 0.50
 # personal quantity cap: learned from "couldn't unload N-20 last time"
 # scalper_qcap_weights: {40: 0.30, 30: 0.30, 30: 0.25, 50: 0.15}
 # per-SKU max the scalper believes they can resell before $/hr collapses
@@ -103,18 +110,20 @@ scalper_sell_through:
   Tin: 100
   Bundle: 100
   UPC: 100
-# === Collusion / Parasite Mechanism ===
-# When enabled, scalper recruits within a group share the earliest
-# member's queue position. Models "join their friend who's been
-# camping all night." Consumers are unaffected.
+  Single: 100
+# === Collusion = network piggyback (realistic) ===
+# One sentry per network camps; the rest show late (defer_hour) and inherit
+# the sentry's held position. Non-networked scalpers arrive normally and do
+# NOT cut. 3:1 networked:non-networked = 0.75 probability.
 collusion_enabled: false
-collusion_group_size: 5
+scalper_network_prob: 0.75
+network_anchor_defer_hour: 8.5
 
 # how aggressively each scalper attacks each SKU, as a fraction of that SKU's
 # sell-through ceiling, drawn per scalper (gives variance without flat qcap)
 scalper_demand_share: [0.80, 1.00]
 # personal credit limit (the $ cap that binds independently of store cap)
-scalper_credit_min: 2000
+scalper_credit_min: 10000
 scalper_credit_max: 10000
 # monopoly bonus when a scalper can corner a SKU's supply
 scalper_monopoly_mult: 1.5

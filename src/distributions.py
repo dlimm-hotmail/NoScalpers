@@ -3,85 +3,91 @@ import numpy as np
 from src.types import Agent
 
 
-# ---- Arrival ----
-# Placeholder: a ramped distribution over pre-open hours (1am..open).
-# More weight near opening = the big general cluster; low weight early
-# = the hardcore campers. Replace with a real mixture once calibrated.
-def sample_arrival_hour(rng: np.random.Generator, cfg: dict,
-                        agent_type: str) -> float:
+def sample_arrival_hour(rng, cfg, agent_type):
     open_h = cfg["store_open_hour"]
     if agent_type == "scalper":
-        mode = cfg.get("scalper_arrival_mode", "uniform_late")
-        if mode == "camp":
-            # hardcore campers: 1am-3am cluster, the seat-holders
+        if cfg.get("scalper_arrival_mode", "uniform_late") == "camp":
             return float(rng.uniform(1, 3))
         return float(rng.uniform(cfg.get("ticket_window_start", 7), open_h))
-    hours = list(range(open_h - 8, open_h + 1))   # e.g. 1..9
-    weights = np.array([h - (open_h - 8) + 1 for h in hours], dtype=float)
-    weights /= weights.sum()
-    h = int(rng.choice(hours, p=weights))
-    # 15% of consumers trickle in after opening (walk-ins, late comers).
+    hours = list(range(open_h - 8, open_h + 1))
+    w = np.array([h - (open_h - 8) + 1 for h in hours], dtype=float)
+    w /= w.sum()
+    h = int(rng.choice(hours, p=w))
     if rng.random() < 0.15:
         return float(rng.uniform(open_h, open_h + 4))
     return float(h)
 
 
-# ---- Desired purchase vectors ----
-# Per-SKU discrete demand: (qty, probability). Calibrate from basket data.
-SKU_DEMAND: Dict[str, List[tuple]] = {
-    "ETB":    [(0, 0.30), (1, 0.30), (2, 0.20), (3, 0.10), (4, 0.05), (5, 0.05)],
-    "Tin":    [(0, 0.45), (1, 0.30), (2, 0.15), (3, 0.10)],
-    "Bundle": [(0, 0.30), (1, 0.25), (2, 0.25), (3, 0.15), (4, 0.05)],
-    "UPC":    [(0, 0.40), (1, 0.30), (2, 0.20), (3, 0.10)],
+def sample_consumer_type(rng, cfg):
+    wt = cfg.get("consumer_type_weights", {"hardcore":.2,"enthusiast":.5,"budget":.3})
+    opts = list(wt.keys()); ps = np.array([wt[o] for o in opts], float); ps/=ps.sum()
+    return str(rng.choice(opts, p=ps))
+
+
+def get_consumer_budget(rng, ctype, cfg):
+    base = float(cfg.get("consumer_budgets", {}).get(ctype, 200))
+    return float(base * rng.uniform(0.85, 1.15))
+
+
+def get_priority(agent_type, ctype, cfg):
+    if agent_type == "scalper":
+        return list(cfg.get("scalper_priority", ["UPC","ETB","Bundle","Tin","Single"]))
+    return list(cfg.get("consumer_priorities", {}).get(
+        ctype, ["UPC","ETB","Bundle","Tin","Single"]))
+
+
+SKU_DEMAND = {
+    "ETB":    [(0,.30),(1,.30),(2,.20),(3,.10),(4,.05),(5,.05)],
+    "Tin":    [(0,.45),(1,.30),(2,.15),(3,.10)],
+    "Bundle": [(0,.30),(1,.25),(2,.25),(3,.15),(4,.05)],
+    "UPC":    [(0,.40),(1,.30),(2,.20),(3,.10)],
+    "Single": [(0,.30),(1,.20),(2,.20),(3,.15),(4,.10),(5,.05)],
 }
 
+def _sample_qty(rng, sku):
+    t = SKU_DEMAND.get(sku, [(0,1.0)])
+    qs=[q for q,_ in t]; ps=np.array([p for _,p in t],float); ps/=ps.sum()
+    return int(rng.choice(qs, p=ps))
 
-def sample_desired(rng: np.random.Generator, cfg: dict) -> Dict[str, int]:
-    out = {}
-    for sku, table in SKU_DEMAND.items():
-        qs = [q for q, _ in table]
-        ps = [p for _, p in table]
-        ps = np.array(ps, dtype=float); ps /= ps.sum()
-        out[sku] = int(rng.choice(qs, p=ps))
-    return out
-
-
-def sample_budget(rng: np.random.Generator, desired: Dict[str, int],
-                  cfg: dict) -> float:
-    base = sum(q * cfg["sku_prices"][s] for s, q in desired.items())
-    # Some buyers are budget-tight, some flush.
-    return float(base * rng.uniform(1, 1.3))
-
-
-def sample_desperation(rng: np.random.Generator, desired: Dict[str, int],
-                       cfg: dict) -> Dict[str, float]:
-    return {s: float(cfg["sku_prices"][s] * rng.uniform(1.0, 1.8))
-            for s, q in desired.items() if q > 0}
+def sample_desired_budgeted(rng, cfg, budget, priority):
+    desired = {s:0 for s in priority}
+    rem = budget
+    for sku in priority:
+        want = _sample_qty(rng, sku)
+        if want <= 0: continue
+        price = cfg["sku_prices"].get(sku, 1)
+        if want * price <= rem:
+            desired[sku] = want; rem -= want*price
+        else:
+            afford = int(rem // price)
+            desired[sku] = min(want, afford); rem -= desired[sku]*price
+    return desired
 
 
-# ---- Party composition ----
-def sample_party(rng: np.random.Generator) -> tuple:
+def sample_desperation(rng, desired, cfg):
+    return {s: float(cfg["sku_prices"][s]*rng.uniform(1.0,1.8))
+            for s,q in desired.items() if q>0}
+
+
+def sample_party(rng):
     r = rng.random()
-    if r < 0.70:
-        return (1, False, None)            # solo
-    if r < 0.85:
-        return (2, False, None)            # couple (2 adults)
-    age = int(rng.integers(2, 12))
-    return (2, True, age)                  # parent + child
+    if r < .70: return (1, False, None)
+    if r < .85: return (2, False, None)
+    return (2, True, int(rng.integers(2,12)))
 
 
-# ---- Patience ceilings (minutes of store-process time) ----
-def sample_patience(rng: np.random.Generator, agent: Agent) -> float:
-    if agent.agent_type == "scalper":
-        return float(rng.uniform(240, 480))
+def sample_patience(rng, agent):
+    t = agent.arrival_time
+    if t <= 3: base = rng.uniform(600,1200)
+    elif t <= 6: base = rng.uniform(300,500)
+    elif t <= 8: base = rng.uniform(120,240)
+    else: base = rng.uniform(60,150)
     if agent.has_child:
-        if agent.child_age is not None and agent.child_age <= 6:
-            return float(rng.uniform(60, 120))
-        return float(rng.uniform(90, 180))
-    return float(rng.uniform(180, 300))    # solo adult or couple
+        base = min(base, 120 if (agent.child_age or 0)<=6 else 180)
+    return float(base)
 
 
-# ---- Scalper markup ----
-def sample_markup(rng: np.random.Generator, cfg: dict) -> float:
-    return float(max(0.05, rng.normal(cfg["scalper_markup_mean"],
-                                      cfg["scalper_markup_std"])))
+def sample_markup(rng, cfg):
+    lo = float(cfg.get("scalper_markup_min", 0.4))
+    hi = float(cfg.get("scalper_markup_max", 1.5))
+    return float(rng.uniform(lo, hi))

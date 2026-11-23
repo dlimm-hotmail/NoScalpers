@@ -2,8 +2,9 @@ from typing import List
 import numpy as np
 from src.types import Agent
 from src.config import build_skus, sku_priority, validate
-from src.distributions import (sample_arrival_hour, sample_desired,
-                               sample_budget, sample_desperation,
+from src.distributions import (sample_arrival_hour, sample_consumer_type,
+                               get_consumer_budget, get_priority,
+                               sample_desired_budgeted, sample_desperation,
                                sample_party, sample_patience, sample_markup)
 from src.waitlist import Waitlist
 from src.mechanisms import (turn_cap, turn_max_per_sku, min_cooloff_wait,
@@ -17,14 +18,21 @@ def _make_agent(aid, atype, rng, cfg, open_h, supply_snapshot):
         party, has_child, age = 1, False, None
     if atype == "scalper":
         behavior_id = pick_behavior(rng, cfg)
+        consumer_type = ""
+        priority = get_priority("scalper", "", cfg)
         desired = build_desired(rng, cfg, supply_snapshot, behavior_id)
+        budget = 1e12
     else:
-        behavior_id = "consumer"
-        desired = sample_desired(rng, cfg)
+        consumer_type = sample_consumer_type(rng, cfg)
+        priority = get_priority("consumer", consumer_type, cfg)
+        budget = get_consumer_budget(rng, consumer_type, cfg)
+        desired = sample_desired_budgeted(rng, cfg, budget, priority)
     a = Agent(agent_id=aid, agent_type=atype, party_size=party,
               has_child=has_child, child_age=age)
+    a.consumer_type = consumer_type
+    a.priority = priority
     a.desired = desired
-    a.budget = sample_budget(rng, desired, cfg)
+    a.budget = budget
     a.desperation_price = sample_desperation(rng, desired, cfg)
     a.arrival_time = sample_arrival_hour(rng, cfg, atype)
     a.effective_arrival = a.arrival_time
@@ -35,21 +43,10 @@ def _make_agent(aid, atype, rng, cfg, open_h, supply_snapshot):
 
 
 def _enter_time(agent: Agent, cfg: dict, open_h: float,
-                event_time: float, present: bool) -> float:
+                present: bool) -> float:
     if present:
         return -1.0
     return max(0.0, agent.arrival_time - open_h)
-
-
-def _scalper_priority(cfg: dict) -> List[str]:
-    """Scalpers buy in ROI order: highest dollar-ROI SKU first.
-    If they get 45% ROI on ETB, buying a 30% Tin first is a
-    relative loss. Sort by retail * markup_mean descending."""
-    skus = list(cfg["sku_prices"].keys())
-    def roi(s):
-        mm = cfg.get("sku_markup_mean", {}).get(s, cfg["scalper_markup_mean"])
-        return cfg["sku_prices"][s] * mm
-    return sorted(skus, key=roi, reverse=True)
 
 
 def run_one(cfg: dict, seed: int):
@@ -57,8 +54,6 @@ def run_one(cfg: dict, seed: int):
     rng = np.random.default_rng(seed)
     skus = build_skus(cfg)
     skus_by_id = {s.sku_id: s for s in skus}
-    consumer_priority = sku_priority(cfg)
-    scalper_priority = _scalper_priority(cfg)
     open_h = float(cfg["store_open_hour"])
     interaction = float(cfg.get("interaction_time_min", 1))
 
@@ -85,42 +80,31 @@ def run_one(cfg: dict, seed: int):
         return False
 
     for a in agents:
-        a.enter_time = _enter_time(a, cfg, open_h, event_time, present(a))
+        a.enter_time = _enter_time(a, cfg, open_h, present(a))
 
-    # Collusion regroup: scalper recruits within a group get the
-    # earliest member's effective_arrival, teleporting them to the
-    # front of their group in the queue.
+    # Collusion = network piggyback. One networked member is the sentry
+    # (earliest arrival); the other networked members do NOT camp — they
+    # show at defer_hour and inherit the sentry's held position. Non-
+    # networked scalpers and consumers keep their natural position.
     if cfg.get("collusion_enabled", False):
-        group_size = int(cfg.get("collusion_group_size", 5))
-        sc = sorted([a for a in agents if a.agent_type == "scalper"],
-                    key=lambda a: a.arrival_time)
-        for i in range(0, len(sc), group_size):
-            grp = sc[i:i + group_size]
-            min_at = grp[0].arrival_time
-            min_et = grp[0].enter_time
-            for a in grp:
-                a.effective_arrival = min_at
-                a.enter_time = min_et
+        p_net = float(cfg.get("scalper_network_prob", 0.75))
+        defer = float(cfg.get("network_anchor_defer_hour", 8.5))
+        sc = [a for a in agents if a.agent_type == "scalper"]
+        for a in sc:
+            a.networked = bool(rng.random() < p_net)
+        net = [a for a in sc if a.networked]
+        if net:
+            anchor = min(net, key=lambda a: a.arrival_time)   # the sentry
+            for a in net:
+                if a is not anchor:
+                    # they physically show at `defer`, but hold the sentry's spot
+                    a.effective_arrival = anchor.arrival_time
+                    a.enter_time = anchor.enter_time            # inherit ticket presence
     pending = sorted(agents, key=lambda a: (a.enter_time, a.effective_arrival, a.arrival_time))
     if mode == "random_time" and cfg.get("ticket_assignment") == "random":
         front = [a for a in pending if a.enter_time < 0]
-        back = [a for a in pending if a.enter_time >= 0]
-        # Collusion still applies: group members stay together in the shuffle
-        if cfg.get("collusion_enabled", False):
-            group_size = int(cfg.get("collusion_group_size", 5))
-            sc = [a for a in front if a.agent_type == "scalper"]
-            co = [a for a in front if a.agent_type == "consumer"]
-            rng.shuffle(sc)
-            # regroup: within each shuffled chunk, keep group members adjacent
-            grouped = []
-            for i in range(0, len(sc), group_size):
-                grp = sc[i:i + group_size]
-                grp.sort(key=lambda a: a.effective_arrival)
-                grouped.extend(grp)
-            front = grouped + co
-            rng.shuffle(front)
-        else:
-            rng.shuffle(front)
+        back  = [a for a in pending if a.enter_time >= 0]
+        rng.shuffle(front)        # lottery breaks the held-spot clustering
         pending = front + back
 
     waitlist = Waitlist()
@@ -166,7 +150,7 @@ def run_one(cfg: dict, seed: int):
         sku_turn_max = turn_max_per_sku(agent, cfg)
         sku_lim = per_sku_limit(agent, cfg)
         tot_lim = total_qty_limit(agent, cfg)
-        priority = scalper_priority if agent.agent_type == "scalper" else consumer_priority
+        priority = agent.priority
 
         remaining_cap = cap
         total_this_turn = 0
