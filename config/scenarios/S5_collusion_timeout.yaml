@@ -4,6 +4,7 @@ ticket_assignment: "sequential"
 spend_cap_enabled: false
 cooldown_enabled: true
 per_sku_qty_limit_enabled: true
-per_sku_qty_limit: 3
+per_sku_qty_limit: 1
 timeout_increment_minutes: 10
 collusion_enabled: true
+debug_purchase_log: true

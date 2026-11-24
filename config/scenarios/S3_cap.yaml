@@ -5,3 +5,4 @@ ticket_assignment: "sequential"
 spend_cap_enabled: true
 spend_cap_dollars: 270
 collusion_enabled: false
+debug_purchase_log: true

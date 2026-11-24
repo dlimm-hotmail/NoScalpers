@@ -1,7 +1,10 @@
 ticket_distribution_mode: "arrival"
 ticket_assignment: "sequential"
-cooldown_enabled: false
 per_sku_qty_limit_enabled: true
-per_sku_qty_limit: 3
+per_sku_qty_limit: 1
 total_qty_limit_enabled: false
 spend_cap_enabled: false
+cooldown_enabled: true
+timeout_increment_minutes: 9999   # re-entry effectively banned within the day
+debug_service_order: false
+debug_purchase_log: false

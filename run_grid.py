@@ -74,7 +74,18 @@ def main():
             spec = f">14{fmt}"          # e.g. ">14.3f"
             row += f"{r[key]:{spec}}"
         print(row)
-        
+
+    # for name in SCENARIOS:
+    #    path = f"config/scenarios/{name}.yaml"
+    #    print(f"Running {name}...")
+    #    cfg = load_config(path)
+    #    print("   enabled axes:",
+    #        {k: cfg.get(k) for k in
+    #        ["spend_cap_enabled","per_sku_qty_limit_enabled",
+    #         "total_qty_limit_enabled","cooldown_enabled",
+    #         "collusion_enabled","ticket_distribution_mode"]})
+    #    results[name] = run_scenario(path)
+
     # Save raw JSON for further analysis
     with open("grid_results.json", "w") as f:
         json.dump(results, f, indent=2)

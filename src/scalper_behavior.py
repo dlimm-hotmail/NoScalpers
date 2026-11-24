@@ -9,33 +9,18 @@ def pick_behavior(rng, cfg):
     return str(rng.choice(opts, p=ps))
 
 def build_desired_vector(rng, cfg, supply):
-    """Dealer vector in CONFIG priority order, sized by sell-through*demand_share,
-    bounded by supply and credit. A unit is only wanted if resale clears the
-    buy cost + transaction cost (markup -> buy decision)."""
-    credit = float(rng.uniform(cfg["scalper_credit_min"], cfg["scalper_credit_max"]))
-    sell   = cfg.get("scalper_sell_through", {})
-    lo,hi  = cfg.get("scalper_demand_share", [0.80,1.00])
-    prio   = list(cfg.get("scalper_priority", ["UPC","ETB","Bundle","Tin","Single"]))
-    txn    = float(cfg.get("scalper_transaction_cost", 8))
+    """Desire = what they'd flip, capped only by supply (and sell_through).
+    NO credit truncation here: a real scalper doesn't pre-commit their cash
+    to one SKU at build time. Budget is enforced live at the register."""
+    sell  = cfg.get("scalper_sell_through", {})
+    lo,hi = cfg.get("scalper_demand_share", [0.80,1.00])
+    prio  = list(cfg.get("scalper_priority", ["UPC","ETB","Bundle","Tin","Single"]))
 
     desired = {s:0 for s in prio}
-    rem = credit
     for sku in prio:
-        price = cfg["sku_prices"][sku]
-        # each scalper draws a per-unit resale markup; buy only if it clears cost
-        markup = float(rng.uniform(cfg.get("scalper_markup_min",0.4),
-                                   cfg.get("scalper_markup_max",1.5)))
-        resale = price * (1 + markup)
-        if resale < price + txn:      # margin-negative -> skip this SKU entirely
-            continue
         share = float(rng.uniform(lo, hi))
         want  = min(int(share * sell.get(sku,100)), supply.get(sku,0))
-        afford = int(rem // price)
-        qty = max(0, min(want, afford))
-        desired[sku] = qty
-        rem -= qty*price
-        if rem < price:
-            break
+        desired[sku] = max(0, want)
     return desired
 
 def desired_vector_B(rng,cfg,supply):

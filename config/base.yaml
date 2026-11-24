@@ -4,13 +4,21 @@ ticket_assignment: "sequential"       # "sequential" | "random"
 
 # === Four independent limit axes (default OFF) ===
 per_sku_qty_limit_enabled: false
-per_sku_qty_limit: 3
-
+per_sku_qty_limit_enabled: false
+per_sku_qty_limit:
+  UPC: 1
+  ETB: 1
+  Bundle: 1
+  Tin: 1
+  Single: 10      # loose: scalpers never buy these; don't cap the consolation item
 total_qty_limit_enabled: false
-total_qty_limit: 10
+total_qty_limit: 14
+# When false, Singles are excluded from fulfillment/zero-rate/scalper-share so
+# the hot-SKU signal isn't diluted by the largest supply block.
+include_singles_in_metrics: false
 
 spend_cap_enabled: false
-spend_cap_dollars: 270
+spend_cap_dollars: 999
 
 # Escalating cooldown between turns (decoupled from caps now)
 cooldown_enabled: false
@@ -57,7 +65,7 @@ scalper_lineup:
 consumer_type_weights: {hardcore: 0.20, enthusiast: 0.50, budget: 0.30}
 consumer_budgets:
   hardcore: 600
-  enthusiast: 210
+  enthusiast: 270
   budget: 60
 # priority = order of spending preference (first item is what they want most)
 consumer_priorities:
@@ -65,7 +73,7 @@ consumer_priorities:
   enthusiast: [ETB, Bundle, UPC, Tin, Single]
   budget:     [Bundle, ETB, Tin, Single, UPC]
 # scalpers share the hardcore priority vector
-scalper_priority: [UPC, ETB, Bundle, Tin, Single]
+scalper_priority: [UPC, ETB, Bundle, Tin]
 
 # === SKU MSRP (also the simulated checkout price) ===
 sku_prices:
@@ -95,7 +103,7 @@ scalper_sell_through:
   Tin: 100
   Bundle: 100
   UPC: 100
-  Single: 100
+  Single: 0
 # === Collusion: networked scalpers inherit the earliest member's queue timing ===
 collusion_enabled: true
 # Network membership probabilities at the same population endpoints.
@@ -103,7 +111,7 @@ scalper_network_prob: [0.05, 0.75]
 
 # how aggressively each scalper attacks each SKU, as a fraction of that SKU's
 # sell-through ceiling, drawn per scalper (gives variance without flat qcap)
-scalper_demand_share: [0.80, 1.00]
+scalper_demand_share: [1.00, 1.00]
 # personal credit limit (the $ cap that binds independently of store cap)
 scalper_credit_min: 10000
 scalper_credit_max: 10000

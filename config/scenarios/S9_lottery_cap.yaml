@@ -3,3 +3,4 @@ ticket_assignment: "random"
 spend_cap_enabled: true
 spend_cap_dollars: 270
 collusion_enabled: false
+per_sku_qty_limit: 1
