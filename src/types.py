@@ -30,7 +30,7 @@ class Agent:
     priority: list = field(default_factory=list)   # spending order, set at creation
     effective_arrival: float = 0.0   # queue sort key; defaults to arrival_time
     networked: bool = False
-
+    
     # Demand
     desired: Dict[str, int] = field(default_factory=dict)
     budget: float = 0.0
@@ -44,7 +44,7 @@ class Agent:
 
     # Purchase state
     turns_completed: int = 0
-    items_purchased: Dict[str, int] = field(default_factory=dict)
+    items_purchased: Dict[str, int] = field(default_factory=dict)  # sku_id -> qty bought
 
     # Friction tracking
     cumulative_internal_wait_min: float = 0.0

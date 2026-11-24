@@ -7,8 +7,8 @@ from src.distributions import (sample_arrival_hour, sample_consumer_type,
                                sample_desired_budgeted, sample_desperation,
                                sample_party, sample_patience, sample_markup)
 from src.waitlist import Waitlist
-from src.mechanisms import (turn_cap, turn_max_per_sku, min_cooloff_wait,
-                            per_sku_limit, total_qty_limit)
+from src.mechanisms import (turn_cap, turn_max_for_sku, min_cooloff_wait,
+                            total_qty_limit)
 from src.scalper_behavior import pick_behavior, build_desired
 
 
@@ -26,7 +26,7 @@ def _make_agent(aid, atype, rng, cfg, open_h, supply_snapshot):
         consumer_type = sample_consumer_type(rng, cfg)
         priority = get_priority("consumer", consumer_type, cfg)
         budget = get_consumer_budget(rng, consumer_type, cfg)
-        desired = sample_desired_budgeted(rng, cfg, budget, priority)
+        desired = sample_desired_budgeted(rng, cfg, budget, priority, consumer_type)
     a = Agent(agent_id=aid, agent_type=atype, party_size=party,
               has_child=has_child, child_age=age)
     a.consumer_type = consumer_type
@@ -121,6 +121,8 @@ def run_one(cfg: dict, seed: int):
         #    Gated agents (timer not open) keep their position and are skipped;
         #    people behind them get served instead.
         agent = waitlist.first_ready(current_time)
+
+        # ---- None guard MUST come before anything touches agent ----
         if agent is None:
             # nobody ready: advance clock to next arrival or next timer opening
             candidates = []
@@ -133,6 +135,13 @@ def run_one(cfg: dict, seed: int):
                 break
             current_time = max(current_time, min(candidates))
             continue
+        # ---- only now is agent guaranteed non-None ----
+        prev = dict(agent.items_purchased)
+       
+        # DEBUG: log service order
+        if cfg.get("debug_service_order", False):
+            print(f"  t={current_time:.0f} pos={waitlist._q.index(agent)+1} "
+                  f"type={agent.agent_type:8s} id={agent.agent_id}")
 
         # External wait this turn = time since their timer opened
         ext = current_time - agent.last_ready_time
@@ -147,12 +156,14 @@ def run_one(cfg: dict, seed: int):
 
         # 3. Process the turn
         cap = turn_cap(agent, cfg)
-        sku_turn_max = turn_max_per_sku(agent, cfg)
-        sku_lim = per_sku_limit(agent, cfg)
         tot_lim = total_qty_limit(agent, cfg)
         priority = agent.priority
 
-        remaining_cap = cap
+        # live cash = personal budget minus what they've already spent
+        sku_prices = {s.sku_id: s.retail_price for s in skus}
+        personal_left = agent.budget - agent.total_spend(sku_prices)
+        store_cap = turn_cap(agent, cfg)
+        remaining_cap = min(store_cap, personal_left)   # both constrain live       
         total_this_turn = 0
 
         for sku_id in priority:
@@ -165,7 +176,8 @@ def run_one(cfg: dict, seed: int):
             if remaining_cap < sku.retail_price:
                 continue
             afford = int(remaining_cap // sku.retail_price)
-            can = min(want, afford, sku.remaining, sku_turn_max,
+            sku_max = turn_max_for_sku(agent, sku_id, cfg)   # per-SKU, dict-aware
+            can = min(want, afford, sku.remaining, sku_max,
                       tot_lim - total_this_turn)
             if can <= 0:
                 continue
@@ -173,6 +185,15 @@ def run_one(cfg: dict, seed: int):
             sku.remaining -= can
             remaining_cap -= can * sku.retail_price
             total_this_turn += can
+
+        if cfg.get("debug_purchase_log", False):
+            pos = waitlist._q.index(agent) + 1 if agent in waitlist._q else -1
+            bought = {s: agent.items_purchased.get(s, 0) - prev.get(s, 0) for s in skus_by_id}
+            rem = {s.sku_id: s.remaining for s in skus}
+            log = " ".join(f"{skus_by_id[s].sku_id}={bought[s]}" for s in priority)
+            logr = " ".join(f"{s}={rem[s]}" for s in skus_by_id)
+            print(f"[{current_time:7.0f}] pos={pos:>3} {agent.agent_type:<8} "
+                  f"{agent.agent_id:<5} buy: {log}  rem: {logr}")
 
         agent.cumulative_interaction_min += interaction
         agent.turns_completed += 1

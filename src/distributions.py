@@ -41,26 +41,39 @@ SKU_DEMAND = {
     "Tin":    [(0,.45),(1,.30),(2,.15),(3,.10)],
     "Bundle": [(0,.30),(1,.25),(2,.25),(3,.15),(4,.05)],
     "UPC":    [(0,.40),(1,.30),(2,.20),(3,.10)],
-    "Single": [(0,.30),(1,.20),(2,.20),(3,.15),(4,.10),(5,.05)],
+    "Single": {
+        "hardcore":   [(0, 0.30), (1, 0.20), (2, 0.20), (3, 0.15), (4, 0.10), (5, 0.05)],
+        "enthusiast": [(0, 0.85), (1, 0.10), (2, 0.05)],
+        "budget":     [(1, 0.10), (4, 0.20), (5, 0.30), (6, 0.20), (8, 0.10), (10, 0.10)],
+    },
 }
 
-def _sample_qty(rng, sku):
-    t = SKU_DEMAND.get(sku, [(0,1.0)])
-    qs=[q for q,_ in t]; ps=np.array([p for _,p in t],float); ps/=ps.sum()
+def _sample_qty(rng, sku, ctype):
+    table = SKU_DEMAND.get(sku, {})
+    if isinstance(table, dict):
+        dist = table.get(ctype, [(0, 1.0)])
+    else:
+        dist = table  # fallback: flat per-SKU list (no per-type split)
+    qs = [q for q, _ in dist]
+    ps = np.array([p for _, p in dist], dtype=float)
+    ps /= ps.sum()
     return int(rng.choice(qs, p=ps))
 
-def sample_desired_budgeted(rng, cfg, budget, priority):
-    desired = {s:0 for s in priority}
+def sample_desired_budgeted(rng, cfg, budget, priority, ctype):
+    desired = {s: 0 for s in priority}
     rem = budget
     for sku in priority:
-        want = _sample_qty(rng, sku)
-        if want <= 0: continue
+        want = _sample_qty(rng, sku, ctype)   # <-- was: _sample_qty(rng, sku)
+        if want <= 0:
+            continue
         price = cfg["sku_prices"].get(sku, 1)
         if want * price <= rem:
-            desired[sku] = want; rem -= want*price
+            desired[sku] = want
+            rem -= want * price
         else:
             afford = int(rem // price)
-            desired[sku] = min(want, afford); rem -= desired[sku]*price
+            desired[sku] = min(want, afford)
+            rem -= desired[sku] * price
     return desired
 
 

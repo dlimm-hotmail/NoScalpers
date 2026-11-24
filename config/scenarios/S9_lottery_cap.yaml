@@ -1,6 +1,7 @@
 ticket_distribution_mode: "random_time"
 ticket_assignment: "random"
 spend_cap_enabled: true
-spend_cap_dollars: 270
+spend_cap_dollars: 600
 timeout_enabled: false
 collusion_enabled: false
+per_sku_qty_limit: 1
