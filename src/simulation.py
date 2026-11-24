@@ -212,11 +212,14 @@ def run_one(cfg: dict, seed: int):
 
         if agent.still_wants() and can_progress and \
            agent.total_time_in_store_min() <= agent.patience_ceiling_min:
+            # Step aside: remove from current position, re-append at the back.
+            # The queue wait behind the other customers IS the primary friction;
+            # the cooldown is an ADDITIONAL wait on top of it.
+            waitlist.remove(agent)
+            waitlist.add(agent, current_time)
             cooloff = min_cooloff_wait(agent, cfg)
-            # Agent keeps its position in the queue; only the timer moves.
             agent.earliest_serve_time = current_time + cooloff
             agent.last_ready_time = current_time + cooloff
-            # The cooldown is the agent's own wait (off to the side).
             agent.cumulative_internal_wait_min += cooloff
         else:
             waitlist.remove(agent)
