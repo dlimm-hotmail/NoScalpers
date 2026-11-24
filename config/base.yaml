@@ -1,9 +1,7 @@
 # === Waitlist / Ticket System ===
-# waitlist_enabled: true
 ticket_distribution_mode: "arrival"   # "arrival" | "random_time" | "waves"
 ticket_assignment: "sequential"       # "sequential" | "random"
 
-# === Per-SKU Progressive Timeout (now external, step-based) ===
 # === Four independent limit axes (default OFF) ===
 per_sku_qty_limit_enabled: false
 per_sku_qty_limit: 3
@@ -18,9 +16,6 @@ spend_cap_dollars: 270
 cooldown_enabled: false
 timeout_increment_minutes: 10
 
-# === ID Requirement (always on, not a toggle) ===
-id_required: true
-
 # === Parent-Child 2x Authority (always on) ===
 parent_child_authority: true
 
@@ -29,24 +24,34 @@ parent_child_authority: true
 scalper_markup_min: 0.40   # 1.4x MSRP
 scalper_markup_max: 1.50   # 2.5x MSRP
 scalper_transaction_cost: 8   # $ flat cost to flip (shipping, fees, time)
-scalper_opportunity_cost_per_hour: 15
-scalper_recruitment_cost_per_person: 20
-scalper_show_probability: 0.75
-scalper_coordination_decay: 0.85
 
 # === Alternative Store Baseline (Naples comparison) ===
 alt_store_acquisition_rate: 16
-alt_store_total_time_hours: 2
 
 # === Store Hours ===
 store_open_hour: 9
-store_close_hour: 17
-ticket_window_start: 7
+store_close_hour: 16
+ticket_window_start: 1
 ticket_window_end: 9
 
-# === Population ===
-num_consumers: 100
-num_scalper_recruits: 20
+# === Line entry ===
+# One collector and one scalper attempt per interval, until store closing.
+lineup_start_hour: 1
+lineup_interval_minutes: 10
+lineup_reference_sku: ETB
+# WTP ~ Normal(MSRP + mean offset, standard deviation).
+# Join probability = sigmoid(intercept + slope * (WTP - MSRP)).
+# Negative slopes make positive residuals less likely to join.
+collector_lineup:
+  wtp_mean_offset_dollars: 0
+  wtp_std_dollars: 10
+  logit_intercept: 0
+  logit_slope_per_dollar: -0.15
+scalper_lineup:
+  wtp_mean_offset_dollars: 0
+  wtp_std_dollars: 15
+  logit_intercept: -1
+  logit_slope_per_dollar: -0.25
 
 # === Consumer Types (partner tunes these) ===
 consumer_type_weights: {hardcore: 0.20, enthusiast: 0.50, budget: 0.30}
@@ -57,51 +62,31 @@ consumer_budgets:
 # priority = order of spending preference (first item is what they want most)
 consumer_priorities:
   hardcore:   [UPC, ETB, Bundle, Tin, Single]
-  enthusiast: [UPC, ETB, Bundle, Tin, Single]
+  enthusiast: [ETB, Bundle, UPC, Tin, Single]
   budget:     [Bundle, ETB, Tin, Single, UPC]
 # scalpers share the hardcore priority vector
 scalper_priority: [UPC, ETB, Bundle, Tin, Single]
 
-# === SKU Prices ===
+# === SKU MSRP (also the simulated checkout price) ===
 sku_prices:
-  ETB: 60
-  Tin: 10
-  Bundle: 30
-  UPC: 180
-  Single: 5
+  ETB: 59.99
+  Tin: 9.99
+  Bundle: 29.99
+  UPC: 179.99
+  Single: 4.99
 
-# === SKU Supply (units at this store) ===
+# === SKU Supply (mean units at 20,000 and 9,000,000 people) ===
 sku_supply:
-  ETB: 60
-  Tin: 35
-  Bundle: 70
-  UPC: 40
-  Single: 135
-
-# === Simulation ===
-num_runs: 100
-random_seed: null
+  ETB: [60, 80]
+  Tin: [30, 40]
+  Bundle: [40, 60]
+  UPC: [30, 50]
+  Single: [120, 150]
+city_population: 4510000
 
 # === Purchase Interaction Time ===
 interaction_time_min: 1
 
-# --- Behavior A (margin-calculating solo scalper) ---
-# velocity = hours until a unit sells (calibrate from eBay time-to-sale)
-sku_velocity_hours:
-  ETB: 0.5
-  Tin: 1.5
-  Bundle: 1.0
-  UPC: 0.8
-  Single: 0.2
-# per-SKU markup mean (optional; falls back to scalper_markup_mean if absent)
-sku_markup_mean:
-  ETB: 0.45
-  Tin: 0.30
-  Bundle: 0.35
-  UPC: 0.40
-  Single: 0.50
-# personal quantity cap: learned from "couldn't unload N-20 last time"
-# scalper_qcap_weights: {40: 0.30, 30: 0.30, 30: 0.25, 50: 0.15}
 # per-SKU max the scalper believes they can resell before $/hr collapses
 # (dealer-scale, not consumer-scale). This is the "couldn't unload N-20" idea,
 # per SKU. Calibrate from how much actually moves per SKU on the flip market.
@@ -111,13 +96,10 @@ scalper_sell_through:
   Bundle: 100
   UPC: 100
   Single: 100
-# === Collusion = network piggyback (realistic) ===
-# One sentry per network camps; the rest show late (defer_hour) and inherit
-# the sentry's held position. Non-networked scalpers arrive normally and do
-# NOT cut. 3:1 networked:non-networked = 0.75 probability.
-collusion_enabled: false
-scalper_network_prob: 0.75
-network_anchor_defer_hour: 8.5
+# === Collusion: networked scalpers inherit the earliest member's queue timing ===
+collusion_enabled: true
+# Network membership probabilities at the same population endpoints.
+scalper_network_prob: [0.05, 0.75]
 
 # how aggressively each scalper attacks each SKU, as a fraction of that SKU's
 # sell-through ceiling, drawn per scalper (gives variance without flat qcap)
@@ -125,9 +107,5 @@ scalper_demand_share: [0.80, 1.00]
 # personal credit limit (the $ cap that binds independently of store cap)
 scalper_credit_min: 10000
 scalper_credit_max: 10000
-# monopoly bonus when a scalper can corner a SKU's supply
-scalper_monopoly_mult: 1.5
 # behavior mix (baseline = all A; we'll sweep B/C later)
 scalper_behavior_weights: {A: 1.0, B: 0.0, C: 0.0}
-# scalper arrival: "uniform_late" (current) | "camp" (hardcore 1-3am cluster)
-scalper_arrival_mode: "camp"

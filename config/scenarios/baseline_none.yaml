@@ -1,6 +1,5 @@
 # Baseline: no caps, no timeouts. First-come-first-served.
 # This is the "house next door."
 spend_cap_enabled: false
-timeout_enabled: false
 ticket_distribution_mode: "arrival"
 ticket_assignment: "sequential"

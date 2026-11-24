@@ -1,21 +1,22 @@
+from math import exp
 from typing import List, Dict
 import numpy as np
 from src.types import Agent
 
 
-def sample_arrival_hour(rng, cfg, agent_type):
-    open_h = cfg["store_open_hour"]
-    if agent_type == "scalper":
-        if cfg.get("scalper_arrival_mode", "uniform_late") == "camp":
-            return float(rng.uniform(1, 3))
-        return float(rng.uniform(cfg.get("ticket_window_start", 7), open_h))
-    hours = list(range(open_h - 8, open_h + 1))
-    w = np.array([h - (open_h - 8) + 1 for h in hours], dtype=float)
-    w /= w.sum()
-    h = int(rng.choice(hours, p=w))
-    if rng.random() < 0.15:
-        return float(rng.uniform(open_h, open_h + 4))
-    return float(h)
+# ---- Line entry ----
+def rolls_to_join(rng: np.random.Generator, msrp: float, params: dict) -> bool:
+    willingness = rng.normal(msrp + params["wtp_mean_offset_dollars"],
+                             params["wtp_std_dollars"])
+    residual = willingness - msrp
+    logit = params["logit_intercept"] + params["logit_slope_per_dollar"] * residual
+    # Evaluate the sigmoid without overflowing on extreme residuals.
+    if logit >= 0:
+        probability = 1 / (1 + exp(-logit))
+    else:
+        odds = exp(logit)
+        probability = odds / (1 + odds)
+    return bool(rng.random() < probability)
 
 
 def sample_consumer_type(rng, cfg):

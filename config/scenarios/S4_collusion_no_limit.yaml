@@ -3,6 +3,4 @@
 ticket_distribution_mode: "arrival"
 ticket_assignment: "sequential"
 spend_cap_enabled: false
-timeout_enabled: false
 collusion_enabled: true
-collusion_group_size: 5

@@ -47,7 +47,10 @@ def main():
 
     # Print formatted table
     cols = [
+        ("Collectors", "collectors_joined", ".3f"),
+        ("Scalpers", "scalpers_joined", ".3f"),
         ("Scalper Share", "scalper_share", ".3f"),
+        ("Profit/scalper", "scalper_profit", ".2f"),
         ("Fulfill Mean", "fulfillment_mean", ".3f"),
         ("Fulfill p90", "fulfillment_p90", ".3f"),
         ("Zero Rate", "fulfillment_zero_rate", ".3f"),
@@ -59,7 +62,8 @@ def main():
 
     header = f"{'Scenario':<28}" + "".join(f"{c[0]:>14}" for c in cols)
     sep = "-" * len(header)
-    print(f"\n{sep}")
+    print(f"\nAll table values are averages across {SEEDS} runs per scenario.")
+    print(sep)
     print(header)
     print(sep)
 
@@ -77,14 +81,14 @@ def main():
     print("\nSaved: grid_results.json")
 
     # Quick Pareto print
-    print("\nPareto frontier (scalper_share vs fulfillment_mean):")
+    print("\nPareto frontier (average scalper share vs average fulfillment):")
     pairs = [(results[n]["scalper_share"], results[n]["fulfillment_mean"], n)
              for n in SCENARIOS]
     pairs.sort(key=lambda x: x[0])
     best_fulfill = -1
     for share, fulfill, name in pairs:
         if fulfill > best_fulfill:
-            print(f"  {name:<28} share={share:.3f}  fulfill={fulfill:.3f}")
+            print(f"  {name:<28} avg_share={share:.3f}  avg_fulfill={fulfill:.3f}")
             best_fulfill = fulfill
 
 

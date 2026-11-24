@@ -1,8 +1,9 @@
 from typing import List
+from math import ceil
 import numpy as np
 from src.types import Agent
-from src.config import build_skus, sku_priority, validate
-from src.distributions import (sample_arrival_hour, sample_consumer_type,
+from src.config import build_skus, population_scaled_value, validate
+from src.distributions import (rolls_to_join, sample_consumer_type,
                                get_consumer_budget, get_priority,
                                sample_desired_budgeted, sample_desperation,
                                sample_party, sample_patience, sample_markup)
@@ -12,7 +13,7 @@ from src.mechanisms import (turn_cap, turn_max_per_sku, min_cooloff_wait,
 from src.scalper_behavior import pick_behavior, build_desired
 
 
-def _make_agent(aid, atype, rng, cfg, open_h, supply_snapshot):
+def _make_agent(aid, atype, rng, cfg, arrival_hour, supply_snapshot):
     party, has_child, age = sample_party(rng)
     if atype == "scalper":
         party, has_child, age = 1, False, None
@@ -34,7 +35,7 @@ def _make_agent(aid, atype, rng, cfg, open_h, supply_snapshot):
     a.desired = desired
     a.budget = budget
     a.desperation_price = sample_desperation(rng, desired, cfg)
-    a.arrival_time = sample_arrival_hour(rng, cfg, atype)
+    a.arrival_time = arrival_hour
     a.effective_arrival = a.arrival_time
     a.patience_ceiling_min = sample_patience(rng, a)
     if atype == "scalper":
@@ -42,27 +43,37 @@ def _make_agent(aid, atype, rng, cfg, open_h, supply_snapshot):
     return a
 
 
-def _enter_time(agent: Agent, cfg: dict, open_h: float,
-                present: bool) -> float:
-    if present:
-        return -1.0
-    return max(0.0, agent.arrival_time - open_h)
+def _sample_line(cfg, rng, supply_snapshot):
+    msrp = cfg["sku_prices"][cfg["lineup_reference_sku"]]
+    start = float(cfg["lineup_start_hour"])
+    duration_min = (cfg["store_close_hour"] - start) * 60
+    interval = cfg["lineup_interval_minutes"]
+    entrants = []
+    for slot in range(ceil(duration_min / interval)):
+        arrival_hour = start + slot * interval / 60
+        joined = [atype for atype, key in (
+            ("consumer", "collector_lineup"), ("scalper", "scalper_lineup")
+        ) if rolls_to_join(rng, msrp, cfg[key])]
+        if len(joined) == 2 and rng.random() < 0.5:
+            joined.reverse()
+        for atype in joined:
+            entrants.append(_make_agent(f"{atype}-{slot}", atype, rng, cfg,
+                                        arrival_hour, supply_snapshot))
+    return entrants
 
 
 def run_one(cfg: dict, seed: int):
     validate(cfg)
     rng = np.random.default_rng(seed)
-    skus = build_skus(cfg)
+    skus = build_skus(cfg, rng)
     skus_by_id = {s.sku_id: s for s in skus}
     open_h = float(cfg["store_open_hour"])
     interaction = float(cfg.get("interaction_time_min", 1))
 
     supply_snapshot = {s.sku_id: s.supply for s in skus}
-    consumers = [_make_agent(f"c{i}", "consumer", rng, cfg, open_h, supply_snapshot)
-                 for i in range(cfg["num_consumers"])]
-    scalpers = [_make_agent(f"s{i}", "scalper", rng, cfg, open_h, supply_snapshot)
-                for i in range(cfg["num_scalper_recruits"])]
-    agents = consumers + scalpers
+    agents = _sample_line(cfg, rng, supply_snapshot)
+    consumers = [a for a in agents if a.agent_type == "consumer"]
+    scalpers = [a for a in agents if a.agent_type == "scalper"]
 
     mode = cfg.get("ticket_distribution_mode", "arrival")
     event_time = None
@@ -80,15 +91,11 @@ def run_one(cfg: dict, seed: int):
         return False
 
     for a in agents:
-        a.enter_time = _enter_time(a, cfg, open_h, present(a))
+        a.enter_time = -1.0 if present(a) else max(0.0, (a.arrival_time - open_h) * 60)
 
-    # Collusion = network piggyback. One networked member is the sentry
-    # (earliest arrival); the other networked members do NOT camp — they
-    # show at defer_hour and inherit the sentry's held position. Non-
-    # networked scalpers and consumers keep their natural position.
+    # Networked scalpers inherit the earliest network member's queue timing.
     if cfg.get("collusion_enabled", False):
-        p_net = float(cfg.get("scalper_network_prob", 0.75))
-        defer = float(cfg.get("network_anchor_defer_hour", 8.5))
+        p_net = population_scaled_value(cfg["city_population"], cfg["scalper_network_prob"])
         sc = [a for a in agents if a.agent_type == "scalper"]
         for a in sc:
             a.networked = bool(rng.random() < p_net)
@@ -97,7 +104,6 @@ def run_one(cfg: dict, seed: int):
             anchor = min(net, key=lambda a: a.arrival_time)   # the sentry
             for a in net:
                 if a is not anchor:
-                    # they physically show at `defer`, but hold the sentry's spot
                     a.effective_arrival = anchor.arrival_time
                     a.enter_time = anchor.enter_time            # inherit ticket presence
     pending = sorted(agents, key=lambda a: (a.enter_time, a.effective_arrival, a.arrival_time))

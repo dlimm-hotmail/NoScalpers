@@ -208,7 +208,7 @@ velocity) should be replaced with observed data:
   typically move before $/hr collapses.
 
 Replace the placeholder tables in `src/distributions.py` and the
-`scalper_sell_through` / `sku_velocity_hours` blocks in `base.yaml`.
+`scalper_sell_through` block in `base.yaml`.
 
 ---
 

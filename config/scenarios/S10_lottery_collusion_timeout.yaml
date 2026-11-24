@@ -4,7 +4,5 @@ spend_cap_enabled: false
 cooldown_enabled: true
 per_sku_qty_limit_enabled: true
 per_sku_qty_limit: 3
-free_allowance_per_sku: 3
 timeout_increment_minutes: 10
 collusion_enabled: true
-collusion_group_size: 5
